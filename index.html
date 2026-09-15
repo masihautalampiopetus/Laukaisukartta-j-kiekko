@@ -1,0 +1,25 @@
+function saveImage(){
+
+    const exportCanvas = document.createElement("canvas");
+    const exportCtx = exportCanvas.getContext("2d");
+
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+
+    exportCtx.drawImage(img,0,0,exportCanvas.width,exportCanvas.height);
+    exportCtx.drawImage(canvas,0,0);
+
+    exportCtx.fillStyle = "black";
+    exportCtx.font = "20px Arial";
+
+    exportCtx.fillText(
+        `Maalit ${goals} | Torjunnat ${saves} | Blokit ${blocks} | Ohi ${misses}`,
+        20,
+        exportCanvas.height - 20
+    );
+
+    const link = document.createElement("a");
+    link.download = "laukaisukartta.png";
+    link.href = exportCanvas.toDataURL("image/png");
+    link.click();
+}
