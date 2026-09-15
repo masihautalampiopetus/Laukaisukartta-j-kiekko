@@ -52,7 +52,7 @@
 
   <div class="buttons">
     <button id="undo" type="button">Kumoa</button>
-    <button id="download" type="button">Lataa kuva</button>
+    <button id="download" type="button">Tallenna / jaa kuva</button>
     <button id="clear" type="button">Tyhjennä</button>
   </div>
   <div id="status" class="status" aria-live="polite"></div>
@@ -201,7 +201,7 @@
     items.length=0; redraw(); updateStats(); status.textContent='Kartta tyhjennetty';
   });
 
-  document.getElementById('download').addEventListener('click', () => {
+  document.getElementById('download').addEventListener('click', async () => {
     const out=document.createElement('canvas');
     out.width=1536; out.height=1120;
     const c=out.getContext('2d');
@@ -224,8 +224,37 @@
     c.fillStyle='#102030'; c.font='bold 28px Arial';
     const count=t=>items.filter(i=>i.type===t).length;
     c.fillText(`Maalit ${count('goal')}   Torjunnat ${count('save')}   Blokit ${count('block')}   Ohi ${count('miss')}`,35,1080);
-    const a=document.createElement('a'); a.download='laukaisukartta.png'; a.href=out.toDataURL('image/png'); a.click();
-    status.textContent='Kuva ladattu';
+    out.toBlob(async (blob) => {
+      if (!blob) { status.textContent='Kuvan muodostaminen epäonnistui'; return; }
+      const file = new File([blob], 'laukaisukartta.png', { type: 'image/png' });
+
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Laukaisukartta',
+            text: 'Jääkiekon laukaisukartta'
+          });
+          status.textContent='Valitse Tallenna Kuviin tai Tallenna Tiedostoihin';
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          status.textContent='Tallennus peruutettu';
+          return;
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'laukaisukartta.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      status.textContent='Kuva ladattu Lataukset-kansioon';
+    }, 'image/png');
   });
 
   new ResizeObserver(sizeCanvas).observe(map);
