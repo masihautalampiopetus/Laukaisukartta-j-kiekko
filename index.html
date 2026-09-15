@@ -18,10 +18,12 @@
     .map img { object-fit: fill; pointer-events: none; }
     .map canvas { touch-action: none; }
     .hint { margin: 8px 0; padding: 8px; background: #fff; border-radius: 10px; font-size: .88rem; line-height: 1.35; }
-    .buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     button { min-height: 48px; border: 0; border-radius: 10px; padding: 10px 6px; font-weight: 700; font-size: .95rem; color: white; background: #1769aa; }
     button:active { transform: scale(.98); }
     #undo { background: #596773; }
+    #deleteMode { background: #8a5a00; }
+    #deleteMode.active { background: #d72626; outline: 4px solid #ffd0d0; }
     #clear { background: #a92727; }
     .status { min-height: 1.4em; margin: 7px 0 0; text-align: center; font-weight: 700; }
     @media (max-width: 520px) { .stat { font-size: .76rem; } .stat strong { font-size: 1.15rem; } }
@@ -47,11 +49,12 @@
     <b>1 napautus:</b> torjunta (punainen X) &nbsp;•&nbsp;
     <b>2 napautusta:</b> blokki (keltainen X) &nbsp;•&nbsp;
     <b>2 s painallus:</b> maali (vihreä O) &nbsp;•&nbsp;
-    <b>pyyhkäisy sivulle:</b> ohi (sininen viiva) &nbsp;•&nbsp; <b>merkinnän napautus:</b> poista
+    <b>pyyhkäisy sivulle:</b> ohi (sininen viiva) &nbsp;•&nbsp; <b>poistaminen:</b> aktivoi ensin Poista merkintöjä -painike
   </div>
 
   <div class="buttons">
     <button id="undo" type="button">Kumoa</button>
+    <button id="deleteMode" type="button" aria-pressed="false">Poista merkintöjä</button>
     <button id="download" type="button">Tallenna / jaa kuva</button>
     <button id="clear" type="button">Tyhjennä</button>
   </div>
@@ -72,6 +75,7 @@
   let pendingTap = null, pendingPoint = null;
   let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
   let startHit = -1;
+  let deleteMode = false;
 
   function sizeCanvas() {
     const r = map.getBoundingClientRect();
@@ -146,8 +150,9 @@
     if (!e.isPrimary) return;
     e.preventDefault(); canvas.setPointerCapture(e.pointerId);
     const p = point(e); active = true; moved = false; longDone = false;
-    startX = lastX = p.x; startY = lastY = p.y; startHit = hitTest(p);
-    if (startHit < 0) longTimer = setTimeout(() => {
+    startX = lastX = p.x; startY = lastY = p.y;
+    startHit = deleteMode ? hitTest(p) : -1;
+    if (!deleteMode) longTimer = setTimeout(() => {
       if (active && !moved) { add('goal', {x:startX,y:startY}); longDone = true; navigator.vibrate?.(60); status.textContent='Maali merkitty'; }
     }, 2000);
   });
@@ -163,9 +168,15 @@
     e.preventDefault(); active=false; clearTimeout(longTimer);
     if (longDone) return;
     const p=point(e), dx=p.x-startX, dy=p.y-startY;
-    if (startHit >= 0 && Math.hypot(dx,dy) <= 22) {
-      if (pendingTap) { clearTimeout(pendingTap); pendingTap=null; }
-      items.splice(startHit, 1); redraw(); updateStats(); status.textContent='Merkintä poistettu'; startHit=-1; return;
+    if (deleteMode) {
+      if (startHit >= 0 && Math.hypot(dx,dy) <= 22) {
+        if (pendingTap) { clearTimeout(pendingTap); pendingTap=null; }
+        items.splice(startHit, 1); redraw(); updateStats(); status.textContent='Merkintä poistettu. Poistotila on edelleen käytössä.';
+      } else {
+        status.textContent='Poistotila: napauta poistettavaa merkintää.';
+      }
+      startHit=-1;
+      return;
     }
     startHit=-1;
     if (Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy)*1.15) {
@@ -190,6 +201,18 @@
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', () => { active=false; clearTimeout(longTimer); });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  const deleteButton = document.getElementById('deleteMode');
+  deleteButton.addEventListener('click', () => {
+    if (pendingTap) { clearTimeout(pendingTap); pendingTap=null; }
+    deleteMode = !deleteMode;
+    deleteButton.classList.toggle('active', deleteMode);
+    deleteButton.setAttribute('aria-pressed', String(deleteMode));
+    deleteButton.textContent = deleteMode ? 'Poistotila käytössä' : 'Poista merkintöjä';
+    status.textContent = deleteMode
+      ? 'Poistotila käytössä: napauta poistettavaa merkintää. Lopeta painamalla painiketta uudelleen.'
+      : 'Poistotila poistettu käytöstä.';
+  });
 
   document.getElementById('undo').addEventListener('click', () => {
     if (pendingTap) { clearTimeout(pendingTap); pendingTap=null; }
